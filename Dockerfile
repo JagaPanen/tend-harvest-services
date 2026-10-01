@@ -47,7 +47,7 @@ ENV PYTHONPATH=/app
 # Switch to non-root user
 USER appuser
 
-EXPOSE 8000
+EXPOSE 8009
 
 # Start Uvicorn
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8009", "--proxy-headers"]

@@ -13,11 +13,11 @@ class Settings(BaseSettings):
 
     # ── Database ──
     database_url: str = Field(
-        default="postgresql+asyncpg://postgres:postgres@localhost:5432/harvest_expedition",
+        default="postgresql+asyncpg://username:password@localhost:5432/harvest_expedition",
         description="Async database connection string",
     )
     database_url_sync: str = Field(
-        default="postgresql://postgres:postgres@localhost:5432/harvest_expedition",
+        default="postgresql://username:password@localhost:5432/harvest_expedition",
         description="Sync database connection string (for Alembic)",
     )
 
@@ -30,17 +30,21 @@ class Settings(BaseSettings):
     # ── Optimization weights (α, β, γ) ──
     alpha_travel_cost: float = Field(default=0.4, description="Weight for travel cost")
     beta_detour_cost: float = Field(default=0.3, description="Weight for detour cost")
-    gamma_spoilage_risk: float = Field(default=0.3, description="Weight for spoilage risk")
+    gamma_spoilage_risk: float = Field(
+        default=0.3, description="Weight for spoilage risk"
+    )
 
     # ── Server ──
     api_host: str = Field(default="0.0.0.0", description="API server host")
-    api_port: int = Field(default=8000, description="API server port")
+    api_port: int = Field(default=8009, description="API server port")
     debug: bool = Field(default=False, description="Enable debug mode")
 
     # ── Currency & Units ──
     default_currency: str = Field(default="IDR", description="Default currency")
     default_volume_unit: str = Field(default="kg", description="Default volume unit")
-    cost_per_km_idr: float = Field(default=5000.0, description="Default transport cost per km in IDR")
+    cost_per_km_idr: float = Field(
+        default=5000.0, description="Default transport cost per km in IDR"
+    )
 
     # ── Risk formula version ──
     risk_formula_version: str = Field(
