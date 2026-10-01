@@ -6,6 +6,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from app.models.scenario import OptimizationMode, ScenarioStatus
+from app.schemas.harvest import HarvestResponse
 
 
 class ScenarioCreate(BaseModel):
@@ -44,7 +45,5 @@ class ScenarioResponse(BaseModel):
 
 class ScenarioDetailResponse(ScenarioResponse):
     """Scenario with nested harvest details."""
-
-    from app.schemas.harvest import HarvestResponse
 
     harvests: list[HarvestResponse] = []
