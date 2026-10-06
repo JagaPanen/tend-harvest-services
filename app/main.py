@@ -25,10 +25,15 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS — allow the Next.js frontend during development
+# CORS — local dev, the VPS site, and the Vercel frontend.
+# Credentials cannot be combined with allow_origins=["*"], so origins are listed explicitly.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origin_regex=(
+        r"https://([\w-]+\.)*avsatya\.dev"
+        r"|https://[\w-]+(\.[\w-]+)*\.vercel\.app"
+    ),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
