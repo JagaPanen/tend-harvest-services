@@ -11,6 +11,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.models.commodity import Commodity
@@ -98,6 +99,7 @@ async def list_harvests(
     result = await db.execute(
         select(Harvest)
         .where(Harvest.scenario_id == scenario_id)
+        .options(selectinload(Harvest.commodity))
         .order_by(Harvest.label)
     )
     harvests = result.scalars().all()

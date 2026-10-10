@@ -63,7 +63,9 @@ class Harvest(Base):
 
     # Relationships
     scenario: Mapped["Scenario"] = relationship(back_populates="harvests")  # noqa: F821
-    commodity: Mapped["Commodity"] = relationship(back_populates="harvests")  # noqa: F821
+    commodity: Mapped["Commodity"] = relationship(  # noqa: F821
+        back_populates="harvests", lazy="selectin"
+    )
 
     def __repr__(self) -> str:
         return f"<Harvest(label={self.label!r}, volume={self.volume_kg}kg)>"

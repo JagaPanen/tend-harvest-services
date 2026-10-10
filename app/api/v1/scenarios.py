@@ -90,7 +90,7 @@ async def get_scenario(
     result = await db.execute(
         select(Scenario)
         .where(Scenario.id == scenario_id)
-        .options(selectinload(Scenario.harvests))
+        .options(selectinload(Scenario.harvests).selectinload(Harvest.commodity))
     )
     scenario = result.scalar_one_or_none()
     if scenario is None:
