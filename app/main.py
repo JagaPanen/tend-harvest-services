@@ -32,6 +32,7 @@ app.add_middleware(
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_origin_regex=(
         r"https://([\w-]+\.)*avsatya\.dev"
+        r"|https?://([\w-]+\.)*panenlink\.id"
         r"|https://[\w-]+(\.[\w-]+)*\.vercel\.app"
     ),
     allow_credentials=True,
