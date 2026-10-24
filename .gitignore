@@ -12,6 +12,10 @@ build/
 .venv/
 venv/
 
+# Local-only developer seed (passwords / @panenlink.id QA accounts)
+scripts/seed_dev_local.py
+infra/seed/dev_local/
+
 # IDE
 .vscode/
 .idea/
