@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.v1.auth import router as auth_router
 from app.api.v1.commodities import router as commodities_router
 from app.api.v1.harvests import router as harvests_router
 from app.api.v1.optimization import router as optimization_router
@@ -18,9 +19,10 @@ app = FastAPI(
     description=(
         "Risk-Based Post-Harvest Distribution Optimization System. "
         "Helps agricultural cooperatives decide which vehicle should carry which harvest, "
-        "and via which route — taking commodity spoilage risk into account."
+        "and via which route — taking commodity spoilage risk into account. "
+        "V2 P0: JWT auth + guest demo sessions."
     ),
-    version="0.1.0",
+    version="0.2.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
@@ -41,6 +43,7 @@ app.add_middleware(
 )
 
 # ── API v1 routes ──
+app.include_router(auth_router, prefix="/api/v1")
 app.include_router(commodities_router, prefix="/api/v1")
 app.include_router(vehicles_router, prefix="/api/v1")
 app.include_router(scenarios_router, prefix="/api/v1")
@@ -54,6 +57,7 @@ async def health_check() -> dict[str, Any]:
     """Health check endpoint."""
     return {
         "status": "healthy",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "risk_formula_version": settings.risk_formula_version,
+        "auth": "jwt+guest-demo",
     }

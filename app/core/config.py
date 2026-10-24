@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     # ── Server ──
     api_host: str = Field(default="0.0.0.0", description="API server host")
     api_port: int = Field(default=8009, description="API server port")
+    api_prefix: str = Field(
+        default="/api",
+        description="Public API prefix. Matches the frontend base URL path, with no version segment.",
+    )
     debug: bool = Field(default=False, description="Enable debug mode")
 
     # ── Currency & Units ──
@@ -50,6 +54,18 @@ class Settings(BaseSettings):
     risk_formula_version: str = Field(
         default="v1.0.0",
         description="Current risk formula version for reproducibility tracking",
+    )
+
+    # ── Auth / guest demo (P0) ──
+    jwt_secret: str = Field(
+        default="jagapanen-dev-secret-change-me",
+        description="HMAC secret for JWT access tokens",
+    )
+    jwt_algorithm: str = Field(default="HS256", description="JWT signing algorithm")
+    jwt_expire_hours: int = Field(default=72, description="User JWT TTL in hours")
+    guest_jwt_expire_hours: int = Field(default=2, description="Guest JWT TTL in hours")
+    guest_max_optimize_runs: int = Field(
+        default=5, description="Max POST /optimization/run per guest demo session"
     )
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
