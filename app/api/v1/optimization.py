@@ -13,11 +13,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.auth import Principal, get_current_principal
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.tenancy import get_org_scenario
 from app.models.commodity import Commodity
 from app.models.harvest import Harvest
 from app.models.optimization_run import OptimizationRun, RouteResultData, DecisionExplanation
+from app.models.organization import DemoSession
 from app.models.scenario import Scenario, ScenarioStatus
 from app.models.vehicle import Vehicle
 
@@ -46,8 +49,13 @@ from app.services.routing.adapter import RoutingAdapter
 router = APIRouter(prefix="/optimization", tags=["Optimization"])
 
 
-async def _load_scenario_data(db: AsyncSession, scenario_id: uuid.UUID):
-    """Load scenario, harvests, commodities, and vehicles."""
+async def _load_scenario_data(
+    db: AsyncSession,
+    scenario_id: uuid.UUID,
+    principal: Principal,
+):
+    """Load scenario (org-scoped), harvests, and org vehicles."""
+    await get_org_scenario(db, scenario_id, principal)
     result = await db.execute(
         select(Scenario)
         .options(selectinload(Scenario.harvests).selectinload(Harvest.commodity))
@@ -56,11 +64,34 @@ async def _load_scenario_data(db: AsyncSession, scenario_id: uuid.UUID):
     scenario = result.scalar_one_or_none()
     if not scenario:
         raise HTTPException(status_code=404, detail="Scenario not found")
-        
-    v_result = await db.execute(select(Vehicle).where(Vehicle.active.is_(True)))
+
+    v_result = await db.execute(
+        select(Vehicle).where(
+            Vehicle.active.is_(True),
+            Vehicle.organization_id == principal.org_id,
+        )
+    )
     vehicles = v_result.scalars().all()
-    
     return scenario, vehicles
+
+
+async def _consume_guest_run(db: AsyncSession, principal: Principal) -> None:
+    if not principal.is_guest:
+        return
+    if principal.session_id is None:
+        raise HTTPException(status_code=401, detail="Guest session missing")
+    demo = await db.get(DemoSession, principal.session_id)
+    if demo is None:
+        raise HTTPException(status_code=401, detail="Guest session not found")
+    if demo.runs_used >= settings.guest_max_optimize_runs:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(
+                f"Guest demo limit reached ({settings.guest_max_optimize_runs} runs). "
+                "Sign up to continue."
+            ),
+        )
+    demo.runs_used += 1
 
 
 @router.post(
@@ -70,9 +101,10 @@ async def _load_scenario_data(db: AsyncSession, scenario_id: uuid.UUID):
 )
 async def preview_feasibility(
     payload: FeasibilityRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
 ):
-    scenario, db_vehicles = await _load_scenario_data(db, payload.scenario_id)
+    scenario, db_vehicles = await _load_scenario_data(db, payload.scenario_id, principal)
     if not scenario.harvests:
         raise HTTPException(status_code=400, detail="Scenario has no harvests")
 
@@ -175,12 +207,28 @@ async def preview_feasibility(
 )
 async def run_optimization(
     payload: OptimizeRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
 ):
     """Run full optimization pipeline and generate routes."""
-    scenario, db_vehicles = await _load_scenario_data(db, payload.scenario_id)
+    scenario, db_vehicles = await _load_scenario_data(db, payload.scenario_id, principal)
     if not scenario.harvests:
         raise HTTPException(status_code=400, detail="Scenario has no harvests")
+    # Reserve guest quota before heavy work (fails fast at limit)
+    if principal.is_guest:
+        if principal.session_id is None:
+            raise HTTPException(status_code=401, detail="Guest session missing")
+        demo = await db.get(DemoSession, principal.session_id)
+        if demo is None:
+            raise HTTPException(status_code=401, detail="Guest session not found")
+        if demo.runs_used >= settings.guest_max_optimize_runs:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=(
+                    f"Guest demo limit reached ({settings.guest_max_optimize_runs} runs). "
+                    "Sign up to continue."
+                ),
+            )
 
     now = datetime.now(timezone.utc)
     
@@ -297,7 +345,9 @@ async def run_optimization(
     
     scenario.status = ScenarioStatus.COMPLETED
     scenario.optimization_mode = payload.mode
-    
+
+    await _consume_guest_run(db, principal)
+
     await db.commit()
 
     return OptimizationResponse(

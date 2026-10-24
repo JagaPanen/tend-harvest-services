@@ -9,7 +9,6 @@ from pydantic import BaseModel, Field
 
 
 # ── Request schemas ──────────────────────────────────────────────────────────
-
 class RiskScoreHarvestInput(BaseModel):
     """Inline harvest data for risk scoring (when harvest isn't persisted yet)."""
 
@@ -52,14 +51,15 @@ class RiskScoreRequest(BaseModel):
 
 
 # ── Response schemas ─────────────────────────────────────────────────────────
-
 class RiskScoreItemResponse(BaseModel):
     """Risk score result for a single harvest."""
 
     harvest_id: str = Field(..., description="Harvest ID or inline label")
     label: str
     perishability_class: str = Field(..., description="A–E")
-    urgency_score: float = Field(..., ge=0, le=100, description="0–100, higher = more urgent")
+    urgency_score: float = Field(
+        ..., ge=0, le=100, description="0–100, higher = more urgent"
+    )
     recommended_max_transit_hours: float = Field(
         ..., ge=0, description="Hours of transit remaining before score hits 80"
     )

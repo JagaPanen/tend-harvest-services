@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import Principal, get_current_principal
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.commodity import Commodity
@@ -30,18 +31,6 @@ from app.services.risk.scorer import (
 router = APIRouter(prefix="/risk", tags=["Risk Scoring"])
 
 
-async def _load_commodity(db: AsyncSession, commodity_id: uuid.UUID) -> Commodity:
-    """Load a commodity by ID or raise 404."""
-    result = await db.execute(select(Commodity).where(Commodity.id == commodity_id))
-    commodity = result.scalar_one_or_none()
-    if commodity is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Commodity {commodity_id} not found",
-        )
-    return commodity
-
-
 @router.post(
     "/score",
     response_model=RiskScoreResponse,
@@ -55,6 +44,7 @@ async def _load_commodity(db: AsyncSession, commodity_id: uuid.UUID) -> Commodit
 async def score_risk(
     payload: RiskScoreRequest,
     db: AsyncSession = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
 ) -> RiskScoreResponse:
     """Calculate risk scores for the provided harvests."""
 
@@ -88,7 +78,10 @@ async def score_risk(
         # Preload commodities for all harvests
         commodity_ids = {h.commodity_id for h in db_harvests}
         comm_result = await db.execute(
-            select(Commodity).where(Commodity.id.in_(commodity_ids))
+            select(Commodity).where(
+                Commodity.id.in_(commodity_ids),
+                Commodity.organization_id == principal.org_id,
+            )
         )
         commodities_map = {c.id: c for c in comm_result.scalars().all()}
 
@@ -114,7 +107,10 @@ async def score_risk(
         # Batch-load referenced commodities
         inline_commodity_ids = {h.commodity_id for h in payload.harvests}
         comm_result = await db.execute(
-            select(Commodity).where(Commodity.id.in_(inline_commodity_ids))
+            select(Commodity).where(
+                Commodity.id.in_(inline_commodity_ids),
+                Commodity.organization_id == principal.org_id,
+            )
         )
         commodities_map_inline = {c.id: c for c in comm_result.scalars().all()}
 

@@ -1,8 +1,4 @@
-"""Commodity API endpoints.
-
-GET /api/v1/commodities — List all active commodities with their perishability
-classifications, shelf life references, and default prices.
-"""
+"""Commodity API endpoints — org-scoped."""
 
 import uuid
 
@@ -10,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import Principal, get_current_principal
 from app.core.database import get_db
 from app.models.commodity import Commodity
 from app.schemas.commodity import CommodityCreate, CommodityResponse, CommodityUpdate
@@ -17,37 +14,35 @@ from app.schemas.commodity import CommodityCreate, CommodityResponse, CommodityU
 router = APIRouter(prefix="/commodities", tags=["Commodities"])
 
 
-@router.get(
-    "",
-    response_model=list[CommodityResponse],
-    summary="List commodity classes",
-    description="Retrieve all active commodity types with their perishability class, shelf life, and default prices.",
-)
+@router.get("", response_model=list[CommodityResponse], summary="List commodity classes")
 async def list_commodities(
     active_only: bool = True,
     db: AsyncSession = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
 ) -> list[CommodityResponse]:
-    """List all commodities, optionally filtering by active status."""
-    query = select(Commodity).order_by(Commodity.perishability_class)
+    query = (
+        select(Commodity)
+        .where(Commodity.organization_id == principal.org_id)
+        .order_by(Commodity.perishability_class)
+    )
     if active_only:
         query = query.where(Commodity.active.is_(True))
-
     result = await db.execute(query)
-    commodities = result.scalars().all()
-    return [CommodityResponse.model_validate(c) for c in commodities]
+    return [CommodityResponse.model_validate(c) for c in result.scalars().all()]
 
 
-@router.get(
-    "/{commodity_id}",
-    response_model=CommodityResponse,
-    summary="Get a commodity",
-)
+@router.get("/{commodity_id}", response_model=CommodityResponse, summary="Get a commodity")
 async def get_commodity(
     commodity_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
 ) -> CommodityResponse:
-    """Retrieve a single commodity by ID."""
-    result = await db.execute(select(Commodity).where(Commodity.id == commodity_id))
+    result = await db.execute(
+        select(Commodity).where(
+            Commodity.id == commodity_id,
+            Commodity.organization_id == principal.org_id,
+        )
+    )
     commodity = result.scalar_one_or_none()
     if commodity is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Commodity not found")
@@ -63,35 +58,43 @@ async def get_commodity(
 async def create_commodity(
     payload: CommodityCreate,
     db: AsyncSession = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
 ) -> CommodityResponse:
-    """Create a new commodity type."""
-    commodity = Commodity(**payload.model_dump())
+    if principal.is_guest:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Guests cannot create commodities",
+        )
+    commodity = Commodity(**payload.model_dump(), organization_id=principal.org_id)
     db.add(commodity)
     await db.flush()
     await db.refresh(commodity)
     return CommodityResponse.model_validate(commodity)
 
 
-@router.patch(
-    "/{commodity_id}",
-    response_model=CommodityResponse,
-    summary="Update a commodity",
-)
+@router.patch("/{commodity_id}", response_model=CommodityResponse, summary="Update a commodity")
 async def update_commodity(
     commodity_id: uuid.UUID,
     payload: CommodityUpdate,
     db: AsyncSession = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
 ) -> CommodityResponse:
-    """Update an existing commodity's fields."""
-    result = await db.execute(select(Commodity).where(Commodity.id == commodity_id))
+    if principal.is_guest:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Guests cannot update commodities",
+        )
+    result = await db.execute(
+        select(Commodity).where(
+            Commodity.id == commodity_id,
+            Commodity.organization_id == principal.org_id,
+        )
+    )
     commodity = result.scalar_one_or_none()
     if commodity is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Commodity not found")
-
-    update_data = payload.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(commodity, field, value)
-
     await db.flush()
     await db.refresh(commodity)
     return CommodityResponse.model_validate(commodity)
