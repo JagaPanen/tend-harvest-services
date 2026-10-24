@@ -39,10 +39,13 @@ class ConsolidationResult:
 
 
 def _estimate_route_distance(
-    start_lat: float, start_lng: float, pickups: list[tuple[float, float]], destinations: list[tuple[float, float]]
+    start_lat: float,
+    start_lng: float,
+    pickups: list[tuple[float, float]],
+    destinations: list[tuple[float, float]],
 ) -> float:
     """Estimate total route distance using greedy nearest-neighbor for pickups then destinations.
-    
+
     This is a rough proxy used to quickly reject bad consolidations.
     Route: Vehicle -> all Pickups -> all Destinations.
     Cross-island legs use ferry-aware distance (Java↔Sumatra / Bali).
@@ -126,17 +129,21 @@ def evaluate_consolidation(
     # ── 2. Time & Detour Estimation ──────────────────────────────────────
     pickups = [(h.pickup_lat, h.pickup_lng) for h in harvests]
     destinations = [(h.destination_lat, h.destination_lng) for h in harvests]
-    
+
     est_distance = _estimate_route_distance(
         vehicle.current_lat, vehicle.current_lng, pickups, destinations
     )
-    
+
     # Compare against direct distances to see if detour is too large
     # Direct distance = Vehicle -> Pickup -> Destination
     max_direct_dist = 0.0
     for h in harvests:
-        dist = haversine_km(vehicle.current_lat, vehicle.current_lng, h.pickup_lat, h.pickup_lng)
-        dist += haversine_km(h.pickup_lat, h.pickup_lng, h.destination_lat, h.destination_lng)
+        dist = haversine_km(
+            vehicle.current_lat, vehicle.current_lng, h.pickup_lat, h.pickup_lng
+        )
+        dist += haversine_km(
+            h.pickup_lat, h.pickup_lng, h.destination_lat, h.destination_lng
+        )
         max_direct_dist = max(max_direct_dist, dist)
 
     if max_direct_dist > 0 and est_distance > max_direct_dist * max_detour_multiplier:
@@ -152,13 +159,13 @@ def evaluate_consolidation(
         total_time = est_transit_time + total_loading_time
 
         most_urgent = min(h.recommended_max_transit_hours for h in harvests)
-        
+
         if total_time > most_urgent:
             reasons.append(
                 f"REJECTED (spoilage): total estimated time {total_time:.1f}h "
                 f"exceeds most urgent harvest's max transit {most_urgent:.1f}h"
             )
-            
+
     else:
         total_time = 0.0
 
@@ -185,7 +192,7 @@ def generate_candidate_groups(
     harvests: list[HarvestDemand], max_group_size: int = 3
 ) -> list[tuple[HarvestDemand, ...]]:
     """Generate all possible combinations of harvests up to max_group_size.
-    
+
     Includes single items, pairs, triplets, etc.
     """
     candidates = []
