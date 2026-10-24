@@ -63,12 +63,14 @@ async def signup(payload: SignupRequest, db: AsyncSession = Depends(get_db)) -> 
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
+    from app.services.billing.usage import period_key_for_plan
+
     now = datetime.now(timezone.utc)
     org = Organization(
         name=payload.organization_name,
         is_demo=False,
-        plan="pilot",
-        pilot_ends_at=now + timedelta(days=settings.pilot_days),
+        plan="basic",
+        pilot_ends_at=None,
     )
     db.add(org)
     await db.flush()
@@ -94,7 +96,7 @@ async def signup(payload: SignupRequest, db: AsyncSession = Depends(get_db)) -> 
     db.add(
         UsageCounter(
             organization_id=org.id,
-            period_key="pilot",
+            period_key=period_key_for_plan("basic", now),
             optimize_runs_used=0,
         )
     )
