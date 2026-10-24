@@ -45,7 +45,10 @@ def _estimate_route_distance(
     
     This is a rough proxy used to quickly reject bad consolidations.
     Route: Vehicle -> all Pickups -> all Destinations.
+    Cross-island legs use ferry-aware distance (Java↔Sumatra / Bali).
     """
+    from app.services.routing.islands import travel_leg_km
+
     total_distance = 0.0
     current_lat, current_lng = start_lat, start_lng
 
@@ -54,9 +57,11 @@ def _estimate_route_distance(
     while unvisited_pickups:
         nearest = min(
             unvisited_pickups,
-            key=lambda loc: haversine_km(current_lat, current_lng, loc[0], loc[1]),
+            key=lambda loc: travel_leg_km(current_lat, current_lng, loc[0], loc[1])[0],
         )
-        total_distance += haversine_km(current_lat, current_lng, nearest[0], nearest[1])
+        total_distance += travel_leg_km(
+            current_lat, current_lng, nearest[0], nearest[1]
+        )[0]
         current_lat, current_lng = nearest
         unvisited_pickups.remove(nearest)
 
@@ -65,9 +70,11 @@ def _estimate_route_distance(
     while unvisited_dests:
         nearest = min(
             unvisited_dests,
-            key=lambda loc: haversine_km(current_lat, current_lng, loc[0], loc[1]),
+            key=lambda loc: travel_leg_km(current_lat, current_lng, loc[0], loc[1])[0],
         )
-        total_distance += haversine_km(current_lat, current_lng, nearest[0], nearest[1])
+        total_distance += travel_leg_km(
+            current_lat, current_lng, nearest[0], nearest[1]
+        )[0]
         current_lat, current_lng = nearest
         unvisited_dests.remove(nearest)
 

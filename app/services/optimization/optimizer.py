@@ -40,7 +40,13 @@ class RouteResult:
 
 
 def create_distance_matrix(locations: list[tuple[float, float]]) -> list[list[float]]:
-    """Create a Haversine distance matrix for OR-Tools."""
+    """Create a ferry-aware road distance matrix for OR-Tools.
+
+    Cross-island hops (e.g. Java ↔ Berastagi/Karo on Sumatra) include Merak–
+    Bakauheni ferry + wait so Sumatra pickups inflate distance/cost.
+    """
+    from app.services.routing.islands import travel_leg_km
+
     matrix = []
     for i in range(len(locations)):
         row = []
@@ -48,10 +54,11 @@ def create_distance_matrix(locations: list[tuple[float, float]]) -> list[list[fl
             if i == j:
                 row.append(0.0)
             else:
-                from app.services.optimization.feasibility import haversine_km
-
-                dist = haversine_km(
-                    locations[i][0], locations[i][1], locations[j][0], locations[j][1]
+                dist, _ = travel_leg_km(
+                    locations[i][0],
+                    locations[i][1],
+                    locations[j][0],
+                    locations[j][1],
                 )
                 row.append(dist)
         matrix.append(row)
@@ -174,10 +181,10 @@ class RouteOptimizer:
                         continue
                     target_harvest = harvests[j - 1]
                     travel = dist_matrix[i][j]
-                    # Detour vs straight line from depot to this pickup
-                    from app.services.optimization.feasibility import haversine_km
+                    # Detour vs ferry-aware direct from depot to this pickup
+                    from app.services.routing.islands import travel_leg_km
 
-                    direct = haversine_km(
+                    direct, _ = travel_leg_km(
                         depot[0], depot[1], locations[j][0], locations[j][1]
                     )
                     detour = max(0.0, travel - direct)
