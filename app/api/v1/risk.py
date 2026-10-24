@@ -17,6 +17,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.models.commodity import Commodity
 from app.models.harvest import Harvest
+from app.models.scenario import Scenario
 from app.schemas.risk import (
     RiskScoreRequest,
     RiskScoreResponse,
@@ -60,10 +61,15 @@ async def score_risk(
 
     risk_inputs: list[HarvestRiskInput] = []
 
-    # ── Resolve persisted harvests ───────────────────────────────────────
+    # ── Resolve persisted harvests (org-scoped via scenario) ─────────────
     if has_ids:
         result = await db.execute(
-            select(Harvest).where(Harvest.id.in_(payload.harvest_ids))
+            select(Harvest)
+            .join(Scenario, Harvest.scenario_id == Scenario.id)
+            .where(
+                Harvest.id.in_(payload.harvest_ids),
+                Scenario.organization_id == principal.org_id,
+            )
         )
         db_harvests = result.scalars().all()
 
