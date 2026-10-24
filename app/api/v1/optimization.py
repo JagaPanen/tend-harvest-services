@@ -51,9 +51,20 @@ from app.services.optimization.optimizer import RouteOptimizer
 from app.services.optimization.economic import calculate_impact
 from app.services.risk.scorer import score_harvests, HarvestRiskInput, CommodityInfo
 from app.services.routing.adapter import RoutingAdapter
+from app.services.routing.islands import multi_island_cancel_message
 
 
 router = APIRouter(prefix="/optimization", tags=["Optimization"])
+
+
+def _reject_cross_island_scenario(scenario: Scenario) -> None:
+    """Abort preview/run when harvest pickups sit on different islands."""
+    labeled = [
+        (h.label or str(h.id), h.location_lat, h.location_lng) for h in scenario.harvests
+    ]
+    msg = multi_island_cancel_message(labeled)
+    if msg:
+        raise HTTPException(status_code=400, detail=msg)
 
 
 async def _load_scenario_data(
@@ -116,6 +127,7 @@ async def preview_feasibility(
     )
     if not scenario.harvests:
         raise HTTPException(status_code=400, detail="Scenario has no harvests")
+    _reject_cross_island_scenario(scenario)
 
     # 1. Score harvests for urgency
     now = datetime.now(timezone.utc)
@@ -261,6 +273,7 @@ async def run_optimization(
     )
     if not scenario.harvests:
         raise HTTPException(status_code=400, detail="Scenario has no harvests")
+    _reject_cross_island_scenario(scenario)
 
     now = datetime.now(timezone.utc)
 
