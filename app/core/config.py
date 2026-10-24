@@ -72,6 +72,36 @@ class Settings(BaseSettings):
         default=5, description="Max POST /optimization/run per guest demo session"
     )
 
+    # ── Billing / plans (P4) ──
+    pilot_max_optimize_runs: int = Field(
+        default=25, description="Max optimize runs during Free Pilot"
+    )
+    pilot_days: int = Field(default=14, description="Pilot trial length in days")
+    starter_max_optimize_runs: int = Field(
+        default=200, description="Max optimize runs per calendar month on Starter"
+    )
+    fleet_max_optimize_runs: int = Field(
+        default=1000, description="Max optimize runs per calendar month on Fleet"
+    )
+    usage_soft_cap_ratio: float = Field(
+        default=0.8, description="Soft banner threshold as fraction of plan run limit"
+    )
+    billing_stub: bool = Field(
+        default=True,
+        description="When true (or Xendit key empty), checkout is stubbed; webhook still works",
+    )
+    xendit_secret_key: str = Field(
+        default="", description="Xendit secret key; empty → stub checkout"
+    )
+    xendit_webhook_token: str = Field(
+        default="",
+        description="Optional Xendit callback verification token (x-callback-token)",
+    )
+    billing_public_app_url: str = Field(
+        default="http://127.0.0.1:3000",
+        description="FE origin used for stub checkout redirect URLs",
+    )
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 

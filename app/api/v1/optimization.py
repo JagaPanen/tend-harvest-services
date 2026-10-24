@@ -40,6 +40,7 @@ from app.schemas.optimization import (
     RouteResultSchema,
 )
 
+from app.services.billing.usage import assert_org_can_optimize, consume_org_run
 from app.services.optimization.feasibility import (
     HarvestDemand,
     VehicleCandidate,
@@ -237,12 +238,7 @@ async def run_optimization(
     principal: Principal = Depends(get_current_principal),
 ):
     """Run full optimization pipeline and generate routes."""
-    scenario, db_vehicles = await _load_scenario_data(
-        db, payload.scenario_id, principal
-    )
-    if not scenario.harvests:
-        raise HTTPException(status_code=400, detail="Scenario has no harvests")
-    # Reserve guest quota before heavy work (fails fast at limit)
+    # Reserve quota before any DB work (fails fast at plan / guest limit)
     if principal.is_guest:
         if principal.session_id is None:
             raise HTTPException(status_code=401, detail="Guest session missing")
@@ -257,6 +253,14 @@ async def run_optimization(
                     "Sign up to continue."
                 ),
             )
+    else:
+        await assert_org_can_optimize(db, principal.org_id)
+
+    scenario, db_vehicles = await _load_scenario_data(
+        db, payload.scenario_id, principal
+    )
+    if not scenario.harvests:
+        raise HTTPException(status_code=400, detail="Scenario has no harvests")
 
     now = datetime.now(timezone.utc)
 
@@ -406,6 +410,8 @@ async def run_optimization(
     scenario.optimization_mode = payload.mode
 
     await _consume_guest_run(db, principal)
+    if not principal.is_guest:
+        await consume_org_run(db, principal.org_id)
 
     await db.commit()
 
