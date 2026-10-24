@@ -126,7 +126,7 @@ class RouteOptimizer:
             result_type="baseline",
             mode="shortest_distance",
             vehicle_id=vehicle.vehicle_id,
-            pickup_sequence=[h.label for h in baseline_pickup_seq],
+            pickup_sequence=[h.harvest_id for h in baseline_pickup_seq],
             distance_km=base_route.distance_km,
             duration_hours=base_route.duration_hours,
             risk_score=self._calculate_total_risk(
@@ -145,7 +145,7 @@ class RouteOptimizer:
             result_type="spoilage_aware",
             mode=mode,
             vehicle_id=vehicle.vehicle_id,
-            pickup_sequence=[h.label for h in spoilage_pickup_seq],
+            pickup_sequence=[h.harvest_id for h in spoilage_pickup_seq],
             distance_km=spoil_route.distance_km,
             duration_hours=spoil_route.duration_hours,
             risk_score=self._calculate_total_risk(
