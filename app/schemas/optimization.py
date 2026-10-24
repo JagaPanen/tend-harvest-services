@@ -12,6 +12,7 @@ from app.models.scenario import OptimizationMode
 
 # ── Feasibility Preview ─────────────────────────────────────────────────────
 
+
 class FeasibilityRequest(BaseModel):
     scenario_id: uuid.UUID
 
@@ -44,6 +45,7 @@ class FeasibilityPreviewResponse(BaseModel):
 
 # ── Run Optimization ────────────────────────────────────────────────────────
 
+
 class OptimizeRequest(BaseModel):
     scenario_id: uuid.UUID
     mode: OptimizationMode = OptimizationMode.BALANCED
@@ -68,12 +70,32 @@ class RouteResultSchema(BaseModel):
 
 class OptimizationResponse(BaseModel):
     scenario_id: uuid.UUID
+    run_id: uuid.UUID | None = None
     mode: OptimizationMode
     baseline_route: RouteResultSchema
     spoilage_aware_route: RouteResultSchema
-    
-    # Economic impact (Phase 4)
+    # Economic impact
     estimated_food_loss_avoided_kg: float = 0.0
     economic_loss_avoided_idr: float = 0.0
     additional_logistics_cost_idr: float = 0.0
     net_value_idr: float = 0.0
+
+
+class OptimizationRunSummary(BaseModel):
+    id: uuid.UUID
+    scenario_id: uuid.UUID
+    scenario_name: str | None = None
+    created_at: str
+    formula_version: str
+    alpha: float
+    beta: float
+    gamma: float
+    food_loss_avoided_kg: float
+    economic_loss_avoided_idr: float
+    additional_logistics_cost_idr: float
+    net_value_idr: float
+
+
+class OptimizationRunDetail(OptimizationRunSummary):
+    baseline_route: RouteResultSchema | None = None
+    spoilage_aware_route: RouteResultSchema | None = None
