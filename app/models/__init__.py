@@ -3,6 +3,7 @@
 Import all models here so Alembic's autogenerate can discover them.
 """
 
+from app.models.billing import Subscription, UsageCounter
 from app.models.commodity import Commodity
 from app.models.harvest import Harvest
 from app.models.optimization_run import OptimizationRun, RouteResultData, DecisionExplanation
@@ -31,6 +32,8 @@ __all__ = [
     "RouteResultData",
     "Scenario",
     "ScenarioStatus",
+    "Subscription",
+    "UsageCounter",
     "User",
     "Vehicle",
 ]

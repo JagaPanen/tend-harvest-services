@@ -10,11 +10,13 @@ import asyncio
 from sqlalchemy import select
 
 from app.core.database import Base, async_session_factory, engine
+import app.models  # noqa: F401 — register all models on Base.metadata
 from app.models.commodity import Commodity
 from app.models.harvest import Harvest
 from app.models.organization import DEMO_ORG_ID, Organization
 from app.models.scenario import Scenario
 from app.models.vehicle import Vehicle
+from app.services.billing.schema_ensure import ensure_billing_columns
 from infra.seed.commodities import COMMODITY_SEEDS
 from infra.seed.scenarios import DEMO_HARVESTS, DEMO_SCENARIO
 from infra.seed.vehicles import VEHICLE_SEEDS
@@ -118,6 +120,7 @@ async def seed_scenarios() -> int:
 async def main() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await ensure_billing_columns(conn)
 
     print("🏢 Seeding demo organization...")
     created = await seed_demo_org()
