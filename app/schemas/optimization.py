@@ -31,6 +31,8 @@ class ConsolidationOption(BaseModel):
     reasons: list[str]
     total_volume_kg: float
     estimated_distance_km: float
+    vehicle_id: uuid.UUID | None = None
+    vehicle_name: str | None = None
 
 
 class FeasibilityPreviewResponse(BaseModel):
@@ -45,6 +47,10 @@ class FeasibilityPreviewResponse(BaseModel):
 class OptimizeRequest(BaseModel):
     scenario_id: uuid.UUID
     mode: OptimizationMode = OptimizationMode.BALANCED
+    vehicle_id: uuid.UUID | None = Field(
+        default=None,
+        description="Required preferred vehicle; must be in the feasible set for this scenario",
+    )
 
 
 class RouteResultSchema(BaseModel):

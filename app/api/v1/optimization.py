@@ -177,11 +177,11 @@ async def preview_feasibility(
         ) for r in rejected
     ]
 
-    # 5. Check full consolidation (all harvests into best vehicle)
+    # 5. Consolidation options for each feasible vehicle (all harvests in one load)
     consolidations = []
-    if feasible:
-        best_vehicle = [c for c in candidates if c.vehicle_id == feasible[0].vehicle_id][0]
-        consolidation = evaluate_consolidation(best_vehicle, demands)
+    for f in feasible:
+        candidate = next(c for c in candidates if c.vehicle_id == f.vehicle_id)
+        consolidation = evaluate_consolidation(candidate, demands)
         consolidations.append(
             ConsolidationOption(
                 harvest_ids=[uuid.UUID(hid) for hid in consolidation.harvest_ids],
@@ -189,8 +189,14 @@ async def preview_feasibility(
                 reasons=consolidation.reasons,
                 total_volume_kg=consolidation.total_volume_kg,
                 estimated_distance_km=consolidation.estimated_distance_km,
+                vehicle_id=uuid.UUID(f.vehicle_id),
+                vehicle_name=f.vehicle_name,
             )
         )
+
+    if scenario.status in (ScenarioStatus.DRAFT, ScenarioStatus.FAILED):
+        scenario.status = ScenarioStatus.READY
+        await db.commit()
 
     return FeasibilityPreviewResponse(
         scenario_id=scenario.id,
@@ -276,14 +282,29 @@ async def run_optimization(
     feasible, _ = filter_feasible_vehicles(candidates, demands, planned_departure=now)
     if not feasible:
         raise HTTPException(status_code=400, detail="No feasible vehicles found for this scenario.")
-        
-    best_vehicle = [c for c in candidates if c.vehicle_id == feasible[0].vehicle_id][0]
+
+    feasible_ids = {f.vehicle_id for f in feasible}
+    if payload.vehicle_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="vehicle_id is required. Run POST /optimization/preview and pick a feasible vehicle.",
+        )
+    chosen_id = str(payload.vehicle_id)
+    if chosen_id not in feasible_ids:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Vehicle {chosen_id} is not feasible for this scenario's harvests.",
+        )
+    best_vehicle = next(c for c in candidates if c.vehicle_id == chosen_id)
+
+    scenario.status = ScenarioStatus.OPTIMIZING
+    await db.flush()
 
     # Run optimizer
     adapter = RoutingAdapter()
     optimizer = RouteOptimizer(adapter)
     run_id = str(uuid.uuid4())
-    
+
     baseline_res, optimized_res = await optimizer.optimize(
         run_id=run_id,
         vehicle=best_vehicle,
