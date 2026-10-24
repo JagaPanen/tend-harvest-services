@@ -14,6 +14,7 @@ venv/
 
 # Local-only developer seed (passwords / @panenlink.id QA accounts)
 scripts/seed_dev_local.py
+scripts/seed_scenarios_java_qa.py
 infra/seed/dev_local/
 
 # IDE
