@@ -1,0 +1,49 @@
+# Local verify stack for JagaPanen V2 P0 (API + Postgres).
+# Usage (from this directory):
+#   docker compose up --build -d
+#   curl http://localhost:8009/health
+#   curl -X POST http://localhost:8009/api/v1/auth/demo-session
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: jagapanen-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: jgpanen0309
+      POSTGRES_DB: harvest_expedition
+    ports:
+      - "5433:5432"
+    volumes:
+      - jagapanen_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d harvest_expedition"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jagapanen-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_HOST: postgres
+      DATABASE_PORT: "5432"
+      DATABASE_URL: postgresql+asyncpg://postgres:jgpanen0309@postgres:5432/harvest_expedition
+      DATABASE_URL_SYNC: postgresql://postgres:jgpanen0309@postgres:5432/harvest_expedition
+      JWT_SECRET: jagapanen-docker-dev-secret-32b-min
+      DEBUG: "false"
+      API_HOST: 0.0.0.0
+      API_PORT: "8009"
+      MAPBOX_ACCESS_TOKEN: ""
+    ports:
+      - "8009:8009"
+
+volumes:
+  jagapanen_pgdata:
