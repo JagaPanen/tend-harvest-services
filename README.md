@@ -57,6 +57,11 @@ uvicorn app.main:app --reload
 | POST   | `/api/v1/optimization/run`                  | Generate recommendations   |
 | GET    | `/api/v1/optimization/runs/{id}`            | Retrieve saved run         |
 | GET    | `/api/v1/optimization/runs/{id}/comparison` | Baseline vs system         |
+| GET    | `/api/v1/billing/usage`                     | Org plan + run meter       |
+| POST   | `/api/v1/billing/checkout`                  | Starter/Fleet checkout stub|
+| POST   | `/api/v1/billing/webhook`                   | Xendit/stub payment hook   |
+
+Billing stub docs: [`docs/BILLING.md`](docs/BILLING.md).
 
 ## Project Structure
 
