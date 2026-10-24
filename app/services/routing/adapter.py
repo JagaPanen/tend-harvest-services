@@ -37,13 +37,25 @@ class RoutingAdapter:
         if cache_key in self._cache:
             return self._cache[cache_key]
 
+        from app.services.routing.islands import crosses_island
+
+        # Driving APIs treat sea gaps as continuous road; force ferry-aware mock
+        # whenever any leg crosses islands (e.g. Java ↔ Berastagi/Karo Sumatra).
+        cross_island = any(
+            crosses_island(a[0], a[1], b[0], b[1])
+            for a, b in zip(coordinates, coordinates[1:])
+        )
+
         response: RouteResponse | None = None
-        if self.has_mapbox:
-            response = await self._fetch_mapbox(coordinates)
-        if response is None:
-            response = await self._fetch_osrm(coordinates)
-        if response is None:
+        if cross_island:
             response = await self.mock_provider.get_route(coordinates)
+        else:
+            if self.has_mapbox:
+                response = await self._fetch_mapbox(coordinates)
+            if response is None:
+                response = await self._fetch_osrm(coordinates)
+            if response is None:
+                response = await self.mock_provider.get_route(coordinates)
 
         if response:
             self._cache[cache_key] = response

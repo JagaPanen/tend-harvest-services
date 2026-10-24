@@ -1,13 +1,15 @@
 """Mock routing provider for deterministic testing.
 
-Returns fixed distances based on Haversine calculation with a multiplier to simulate
-real-world road detours, plus a fixed average speed for duration.
+Returns distances via ferry-aware travel legs (haversine + island ferries)
+with a road detour multiplier and average speed for duration.
 """
 
 from __future__ import annotations
 
-import math
+import json
 from dataclasses import dataclass
+
+from app.services.routing.islands import expand_path_via_ferries, travel_leg_km
 
 
 @dataclass
@@ -31,20 +33,6 @@ class MockRoutingProvider:
         self.avg_speed_kmh = avg_speed_kmh
         self.detour_multiplier = detour_multiplier
 
-    def _haversine_km(
-        self, lat1: float, lng1: float, lat2: float, lng2: float
-    ) -> float:
-        R = 6371.0
-        d_lat = math.radians(lat2 - lat1)
-        d_lng = math.radians(lng2 - lng1)
-        a = (
-            math.sin(d_lat / 2) ** 2
-            + math.cos(math.radians(lat1))
-            * math.cos(math.radians(lat2))
-            * math.sin(d_lng / 2) ** 2
-        )
-        return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-
     async def get_route(
         self, coordinates: list[tuple[float, float]]
     ) -> RouteResponse | None:
@@ -60,19 +48,24 @@ class MockRoutingProvider:
             lat1, lng1 = coordinates[i]
             lat2, lng2 = coordinates[i + 1]
 
-            dist = self._haversine_km(lat1, lng1, lat2, lng2) * self.detour_multiplier
-            time = dist / self.avg_speed_kmh
+            dist, time = travel_leg_km(
+                lat1,
+                lng1,
+                lat2,
+                lng2,
+                road_multiplier=self.detour_multiplier,
+                avg_speed_kmh=self.avg_speed_kmh,
+            )
 
             legs.append(RouteLeg(distance_km=dist, duration_hours=time))
             total_dist += dist
             total_time += time
 
-        # GeoJSON LineString (lon, lat) so FE can draw OSM-tile polylines without Mapbox
-        import json
-
+        # GeoJSON with ferry ports inserted so the FE map shows island hops clearly
+        path = expand_path_via_ferries(coordinates)
         line = {
             "type": "LineString",
-            "coordinates": [[lng, lat] for lat, lng in coordinates],
+            "coordinates": [[lng, lat] for lat, lng in path],
         }
         return RouteResponse(
             distance_km=total_dist,
