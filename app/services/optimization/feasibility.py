@@ -173,7 +173,7 @@ def check_vehicle_feasibility(
 
     return FeasibilityResult(
         vehicle_id=vehicle.vehicle_id,
-        vehicle_name=vehicle.vehicle_name,
+        vehicle_name=vehicle.name,
         is_feasible=is_feasible,
         reasons=reasons,
         total_demand_kg=total_demand,
