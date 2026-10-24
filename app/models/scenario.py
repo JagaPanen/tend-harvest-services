@@ -8,7 +8,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, String, func
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -51,6 +51,20 @@ class Scenario(Base):
     )
     optimization_mode: Mapped[OptimizationMode] = mapped_column(
         Enum(OptimizationMode), default=OptimizationMode.BALANCED, nullable=False
+    )
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    is_template: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False,
+        comment="Seed template; guests clone this instead of mutating it",
+    )
+    guest_session_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True,
+        comment="When set, scenario belongs to an anonymous demo session",
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

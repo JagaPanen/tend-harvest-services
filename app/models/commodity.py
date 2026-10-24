@@ -7,7 +7,7 @@ and a default price used for economic impact calculations.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, String, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -26,11 +26,20 @@ class Commodity(Base):
     """
 
     __tablename__ = "commodities"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "name", name="uq_commodity_org_name"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
     perishability_class: Mapped[str] = mapped_column(
         String(1), nullable=False, comment="A (most perishable) to E (least perishable)"
     )
