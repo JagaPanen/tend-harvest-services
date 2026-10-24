@@ -21,10 +21,14 @@ class Settings(BaseSettings):
         description="Sync database connection string (for Alembic)",
     )
 
-    # ── Mapbox ──
+    # ── Mapbox / OSRM ──
     mapbox_access_token: str = Field(
         default="",
-        description="Mapbox API access token for routing",
+        description="Mapbox API access token for routing (preferred when set)",
+    )
+    osrm_base_url: str = Field(
+        default="https://router.project-osrm.org",
+        description="OSRM base URL used when Mapbox token is missing or fails",
     )
 
     # ── Optimization weights (α, β, γ) ──

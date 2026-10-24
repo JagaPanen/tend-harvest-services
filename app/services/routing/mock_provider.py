@@ -31,7 +31,9 @@ class MockRoutingProvider:
         self.avg_speed_kmh = avg_speed_kmh
         self.detour_multiplier = detour_multiplier
 
-    def _haversine_km(self, lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    def _haversine_km(
+        self, lat1: float, lng1: float, lat2: float, lng2: float
+    ) -> float:
         R = 6371.0
         d_lat = math.radians(lat2 - lat1)
         d_lng = math.radians(lng2 - lng1)
@@ -57,17 +59,24 @@ class MockRoutingProvider:
         for i in range(len(coordinates) - 1):
             lat1, lng1 = coordinates[i]
             lat2, lng2 = coordinates[i + 1]
-            
+
             dist = self._haversine_km(lat1, lng1, lat2, lng2) * self.detour_multiplier
             time = dist / self.avg_speed_kmh
-            
+
             legs.append(RouteLeg(distance_km=dist, duration_hours=time))
             total_dist += dist
             total_time += time
 
+        # GeoJSON LineString (lon, lat) so FE can draw OSM-tile polylines without Mapbox
+        import json
+
+        line = {
+            "type": "LineString",
+            "coordinates": [[lng, lat] for lat, lng in coordinates],
+        }
         return RouteResponse(
             distance_km=total_dist,
             duration_hours=total_time,
             legs=legs,
-            geometry=f"mock_route_{len(coordinates)}_pts",
+            geometry=json.dumps(line),
         )
