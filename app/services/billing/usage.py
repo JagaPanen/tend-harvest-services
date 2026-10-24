@@ -1,4 +1,4 @@
-"""Org optimize-run metering and Pilot expiry checks."""
+"""Org optimize-run metering for Basic / Pro plans."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.models.billing import UsageCounter
 from app.models.organization import Organization
-from app.services.billing.plans import plan_run_limit
+from app.services.billing.plans import normalize_plan, plan_run_limit
 
 
 def _now() -> datetime:
@@ -21,13 +21,12 @@ def _now() -> datetime:
 
 
 def period_key_for_plan(plan: str, at: datetime | None = None) -> str:
+    """Basic and Pro both meter by calendar month."""
     at = at or _now()
-    p = plan.lower()
-    if p in ("starter", "fleet"):
+    key = normalize_plan(plan)
+    if key in ("basic", "pro"):
         return at.strftime("%Y-%m")
-    if p == "pilot":
-        return "pilot"
-    return p
+    return key
 
 
 @dataclass
@@ -66,52 +65,42 @@ async def get_or_create_counter(db: AsyncSession, org: Organization) -> UsageCou
     return row
 
 
-def _pilot_expired(org: Organization, now: datetime) -> bool:
-    if org.plan.lower() != "pilot":
-        return False
-    if org.pilot_ends_at is None:
-        return False
-    ends = org.pilot_ends_at
-    if ends.tzinfo is None:
-        ends = ends.replace(tzinfo=timezone.utc)
-    return now >= ends
-
-
 async def build_usage_snapshot(db: AsyncSession, org: Organization) -> UsageSnapshot:
-    now = _now()
-    expired = _pilot_expired(org, now)
     counter = await get_or_create_counter(db, org)
-    limit = plan_run_limit(org.plan)
+    canonical = normalize_plan(org.plan)
+    limit = plan_run_limit(canonical)
     used = counter.optimize_runs_used
     ratio = 0.0 if limit is None or limit <= 0 else min(1.0, used / limit)
     soft = bool(
         limit is not None and ratio >= settings.usage_soft_cap_ratio and used < limit
     )
-    hard = bool(expired or (limit is not None and used >= limit))
+    hard = bool(limit is not None and used >= limit)
     msg: str | None = None
-    if expired:
-        msg = "Pilot trial ended. Upgrade to Starter or Fleet to keep optimizing."
-    elif hard and limit is not None:
+    if hard and limit is not None:
         msg = (
             f"Plan run limit reached ({used}/{limit}). "
-            "Upgrade to continue optimizing."
+            "Upgrade to Pro to continue optimizing."
+            if canonical == "basic"
+            else f"Plan run limit reached ({used}/{limit}). Contact support or wait for next month."
         )
     elif soft and limit is not None:
         msg = (
             f"You have used {used}/{limit} optimize runs "
-            f"({int(ratio * 100)}%). Consider upgrading soon."
+            f"({int(ratio * 100)}%). Consider upgrading to Pro."
+            if canonical == "basic"
+            else f"You have used {used}/{limit} optimize runs ({int(ratio * 100)}%)."
         )
     return UsageSnapshot(
-        plan=org.plan,
+        plan=canonical,
         period_key=counter.period_key,
         optimize_runs_used=used,
         optimize_runs_limit=limit,
         usage_ratio=ratio,
         soft_warning=soft,
         hard_blocked=hard,
-        pilot_ends_at=org.pilot_ends_at,
-        pilot_expired=expired,
-        upgrade_required=hard,
+        pilot_ends_at=None,
+        pilot_expired=False,
+        upgrade_required=hard and canonical == "basic",
         message=msg,
     )
 

@@ -23,7 +23,7 @@ class UsageResponse(BaseModel):
 
 
 class CheckoutRequest(BaseModel):
-    plan: str = Field(description="starter | fleet")
+    plan: str = Field(description="pro (paid checkout; basic is the free default)")
     activate_stub: bool = Field(
         default=False,
         description="When billing stub mode is on, immediately activate the plan",

@@ -72,16 +72,12 @@ class Settings(BaseSettings):
         default=5, description="Max POST /optimization/run per guest demo session"
     )
 
-    # ── Billing / plans (P4) ──
-    pilot_max_optimize_runs: int = Field(
-        default=25, description="Max optimize runs during Free Pilot"
+    # ── Billing / plans — Basic + Pro only ──
+    basic_max_optimize_runs: int = Field(
+        default=50, description="Max optimize runs per calendar month on Basic"
     )
-    pilot_days: int = Field(default=14, description="Pilot trial length in days")
-    starter_max_optimize_runs: int = Field(
-        default=200, description="Max optimize runs per calendar month on Starter"
-    )
-    fleet_max_optimize_runs: int = Field(
-        default=1000, description="Max optimize runs per calendar month on Fleet"
+    pro_max_optimize_runs: int = Field(
+        default=2000, description="Max optimize runs per calendar month on Pro"
     )
     usage_soft_cap_ratio: float = Field(
         default=0.8, description="Soft banner threshold as fraction of plan run limit"

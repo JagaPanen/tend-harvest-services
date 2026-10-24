@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.models.billing import Subscription, UsageCounter
 from app.models.organization import Organization
-from app.services.billing.plans import PAID_CHECKOUT_PLANS
+from app.services.billing.plans import PAID_CHECKOUT_PLANS, normalize_plan
 from app.services.billing.usage import period_key_for_plan
 
 
@@ -28,11 +28,11 @@ async def create_checkout(
     *,
     activate_stub: bool = False,
 ) -> Subscription:
-    plan = plan.lower().strip()
+    plan = normalize_plan(plan)
     if plan not in PAID_CHECKOUT_PLANS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Checkout only supports plan=starter or plan=fleet",
+            detail="Checkout only supports plan=pro",
         )
 
     external_id = f"jp-{org.id.hex[:8]}-{plan}-{uuid.uuid4().hex[:10]}"

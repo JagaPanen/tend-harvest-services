@@ -26,7 +26,7 @@ class UsageCounter(Base):
     organization_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
-    # "pilot" for trial orgs; "YYYY-MM" for monthly Starter/Fleet
+    # "YYYY-MM" for Basic / Pro monthly meters
     period_key: Mapped[str] = mapped_column(String(32), nullable=False)
     optimize_runs_used: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
@@ -45,7 +45,7 @@ class Subscription(Base):
     organization_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
-    plan: Mapped[str] = mapped_column(String(50), nullable=False)  # starter | fleet
+    plan: Mapped[str] = mapped_column(String(50), nullable=False)  # basic | pro
     status: Mapped[str] = mapped_column(
         String(32), default="pending", nullable=False
     )  # pending | active | expired | failed

@@ -32,7 +32,7 @@ class Organization(Base):
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    plan: Mapped[str] = mapped_column(String(50), default="pilot", nullable=False)
+    plan: Mapped[str] = mapped_column(String(50), default="basic", nullable=False)
     pilot_ends_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

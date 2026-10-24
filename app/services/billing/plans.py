@@ -1,4 +1,4 @@
-"""Plan catalog and run limits (JagaPanen V2 P4)."""
+"""Plan catalog — Basic (default) and Pro (paid). Guest remains demo-only."""
 
 from __future__ import annotations
 
@@ -6,14 +6,32 @@ from dataclasses import dataclass
 
 from app.core.config import settings
 
-PAID_CHECKOUT_PLANS = frozenset({"starter", "fleet"})
+# Org plans exposed in product / checkout
+ORG_PLANS = frozenset({"basic", "pro"})
+PAID_CHECKOUT_PLANS = frozenset({"pro"})
+
+# Older plan keys still present in DB / bookmarks → canonical
+_LEGACY_PLAN_ALIASES: dict[str, str] = {
+    "pilot": "basic",
+    "starter": "basic",
+    "fleet": "pro",
+    "enterprise": "pro",
+}
+
+
+def normalize_plan(plan: str) -> str:
+    """Map legacy plan names to basic | pro (guest unchanged)."""
+    key = (plan or "basic").lower().strip()
+    if key == "guest":
+        return "guest"
+    return _LEGACY_PLAN_ALIASES.get(key, key if key in ORG_PLANS else "basic")
 
 
 @dataclass(frozen=True)
 class PlanInfo:
     key: str
     label: str
-    max_runs: int | None  # None = unlimited (enterprise)
+    max_runs: int | None  # None = unlimited
     monthly: bool
     price_idr_monthly: int | None
 
@@ -22,31 +40,21 @@ PLAN_CATALOG: dict[str, PlanInfo] = {
     "guest": PlanInfo(
         "guest", "Guest Demo", settings.guest_max_optimize_runs, False, None
     ),
-    "pilot": PlanInfo(
-        "pilot", "Free Pilot", settings.pilot_max_optimize_runs, False, 0
+    "basic": PlanInfo(
+        "basic", "Basic", settings.basic_max_optimize_runs, True, 0
     ),
-    "starter": PlanInfo(
-        "starter", "Starter", settings.starter_max_optimize_runs, True, 499_000
+    "pro": PlanInfo(
+        "pro", "Pro", settings.pro_max_optimize_runs, True, 999_000
     ),
-    "fleet": PlanInfo(
-        "fleet", "Fleet", settings.fleet_max_optimize_runs, True, 1_499_000
-    ),
-    "enterprise": PlanInfo("enterprise", "Enterprise", None, False, None),
 }
 
 
 def plan_run_limit(plan: str) -> int | None:
-    info = PLAN_CATALOG.get(plan.lower())
-    if info is None:
-        return settings.pilot_max_optimize_runs
-    # Re-read env-backed limits for metered plans
-    key = plan.lower()
-    if key == "pilot":
-        return settings.pilot_max_optimize_runs
-    if key == "starter":
-        return settings.starter_max_optimize_runs
-    if key == "fleet":
-        return settings.fleet_max_optimize_runs
+    key = normalize_plan(plan)
     if key == "guest":
         return settings.guest_max_optimize_runs
-    return info.max_runs
+    if key == "basic":
+        return settings.basic_max_optimize_runs
+    if key == "pro":
+        return settings.pro_max_optimize_runs
+    return settings.basic_max_optimize_runs
