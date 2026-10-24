@@ -6,7 +6,7 @@
 | ----- | ------------------------- | --------------------------------------------- |
 | Guest | 5 / session               | Demo funnel (not an org plan)                 |
 | Basic | 50 / calendar month       | Default on signup (`BASIC_MAX_OPTIMIZE_RUNS`) |
-| Pro   | 2 000 / calendar month    | Paid checkout (`PRO_MAX_OPTIMIZE_RUNS`)       |
+| Pro   | 2 000 / calendar month    | IDR 49rb/bln checkout (`PRO_MAX_OPTIMIZE_RUNS`) |
 
 Soft banner at **80%** of the run limit; hard stop (**429**) at **100%**.
 

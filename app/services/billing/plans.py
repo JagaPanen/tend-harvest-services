@@ -44,7 +44,7 @@ PLAN_CATALOG: dict[str, PlanInfo] = {
         "basic", "Basic", settings.basic_max_optimize_runs, True, 0
     ),
     "pro": PlanInfo(
-        "pro", "Pro", settings.pro_max_optimize_runs, True, 999_000
+        "pro", "Pro", settings.pro_max_optimize_runs, True, 49_000
     ),
 }
 
