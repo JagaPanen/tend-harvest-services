@@ -26,6 +26,7 @@ from app.services.routing.adapter import RoutingAdapter, RouteResponse
 @dataclass
 class RouteResult:
     """The output of an optimization run."""
+
     run_id: str
     result_type: Literal["baseline", "spoilage_aware"]
     mode: str
@@ -48,6 +49,7 @@ def create_distance_matrix(locations: list[tuple[float, float]]) -> list[list[fl
                 row.append(0.0)
             else:
                 from app.services.optimization.feasibility import haversine_km
+
                 dist = haversine_km(
                     locations[i][0], locations[i][1], locations[j][0], locations[j][1]
                 )
@@ -70,30 +72,34 @@ class RouteOptimizer:
         mode: Literal["cost_priority", "balanced", "spoilage_priority"],
     ) -> tuple[RouteResult, RouteResult]:
         """Generate baseline and spoilage-aware routes.
-        
+
         Returns:
             (baseline_result, spoilage_aware_result)
         """
         # 1. Build location array: 0 = Vehicle, 1..N = Pickups, N+1..2N = Destinations
         # Note: MVP simplification — since OR-Tools setup for Pickup & Delivery with
-        # complex spoilage objectives is very heavy, we'll use a permutation evaluation 
+        # complex spoilage objectives is very heavy, we'll use a permutation evaluation
         # approach for the MVP since N is small (usually <= 3 harvests per vehicle).
-        # We will use OR-Tools for TSP if just doing locations, but for small N, 
+        # We will use OR-Tools for TSP if just doing locations, but for small N,
         # brute force is perfectly exact and allows complex custom cost functions.
         # However, PRD asked for OR-Tools. We will set up a simple TSP over pickups.
-        
+
         # To satisfy OR-Tools requirement but keep the MVP agile:
         # We model it as a TSP through Pickups, then TSP through Destinations.
-        
+
         # --- Baseline Routing (Shortest Distance) ---
         baseline_pickup_seq, baseline_dist, baseline_dur = await self._solve_tsp(
             vehicle, harvests, metric="distance"
         )
-        
+
         # --- Spoilage-Aware Routing ---
         # Spoilage-aware changes the edge weights based on the mode
         if mode == "cost_priority":
-            alpha, beta, gamma = settings.alpha_travel_cost, settings.beta_detour_cost, settings.gamma_spoilage_risk
+            alpha, beta, gamma = (
+                settings.alpha_travel_cost,
+                settings.beta_detour_cost,
+                settings.gamma_spoilage_risk,
+            )
         elif mode == "spoilage_priority":
             alpha, beta, gamma = 0.1, 0.2, 0.7
         else:
@@ -105,7 +111,9 @@ class RouteOptimizer:
 
         # Build geometries
         # Baseline
-        base_route = await self._build_full_route(vehicle, harvests, baseline_pickup_seq)
+        base_route = await self._build_full_route(
+            vehicle, harvests, baseline_pickup_seq
+        )
         baseline_res = RouteResult(
             run_id=run_id,
             result_type="baseline",
@@ -114,13 +122,17 @@ class RouteOptimizer:
             pickup_sequence=[h.label for h in baseline_pickup_seq],
             distance_km=base_route.distance_km,
             duration_hours=base_route.duration_hours,
-            risk_score=self._calculate_total_risk(baseline_pickup_seq, base_route.duration_hours),
+            risk_score=self._calculate_total_risk(
+                baseline_pickup_seq, base_route.duration_hours
+            ),
             cost_idr=base_route.distance_km * vehicle.cost_per_km_idr,
             geometry=base_route.geometry,
         )
 
         # Spoilage Aware
-        spoil_route = await self._build_full_route(vehicle, harvests, spoilage_pickup_seq)
+        spoil_route = await self._build_full_route(
+            vehicle, harvests, spoilage_pickup_seq
+        )
         spoilage_res = RouteResult(
             run_id=run_id,
             result_type="spoilage_aware",
@@ -129,7 +141,9 @@ class RouteOptimizer:
             pickup_sequence=[h.label for h in spoilage_pickup_seq],
             distance_km=spoil_route.distance_km,
             duration_hours=spoil_route.duration_hours,
-            risk_score=self._calculate_total_risk(spoilage_pickup_seq, spoil_route.duration_hours),
+            risk_score=self._calculate_total_risk(
+                spoilage_pickup_seq, spoil_route.duration_hours
+            ),
             cost_idr=spoil_route.distance_km * vehicle.cost_per_km_idr,
             geometry=spoil_route.geometry,
         )
@@ -137,35 +151,46 @@ class RouteOptimizer:
         return baseline_res, spoilage_res
 
     async def _solve_tsp(
-        self, 
-        vehicle: VehicleCandidate, 
-        harvests: list[HarvestDemand], 
+        self,
+        vehicle: VehicleCandidate,
+        harvests: list[HarvestDemand],
         metric: str,
-        weights: tuple[float, float, float] = (1.0, 0.0, 0.0)
+        weights: tuple[float, float, float] = (1.0, 0.0, 0.0),
     ) -> tuple[list[HarvestDemand], float, float]:
         """Use OR-Tools to solve TSP for pickups."""
         locations = [(vehicle.current_lat, vehicle.current_lng)]
         for h in harvests:
             locations.append((h.pickup_lat, h.pickup_lng))
-            
+
         dist_matrix = create_distance_matrix(locations)
-        
-        # If spoilage_aware, adjust edge weights
+
+        # Spoilage-aware: α·travel + β·detour + γ·(inverted urgency from risk scorer)
         if metric == "spoilage_aware":
             alpha, beta, gamma = weights
-            # Simple heuristic: heavily penalize edges going to LESS urgent harvests first
+            depot = locations[0]
             for i in range(len(locations)):
                 for j in range(1, len(locations)):
-                    if i != j:
-                        # Index j in locations corresponds to harvests[j-1]
-                        target_harvest = harvests[j - 1]
-                        # Lower max transit = more urgent
-                        urgency_penalty = target_harvest.recommended_max_transit_hours
-                        dist_matrix[i][j] = (alpha * dist_matrix[i][j]) + (gamma * urgency_penalty)
-        
+                    if i == j:
+                        continue
+                    target_harvest = harvests[j - 1]
+                    travel = dist_matrix[i][j]
+                    # Detour vs straight line from depot to this pickup
+                    from app.services.optimization.feasibility import haversine_km
+
+                    direct = haversine_km(
+                        depot[0], depot[1], locations[j][0], locations[j][1]
+                    )
+                    detour = max(0.0, travel - direct)
+                    # High urgency_score → visit sooner → lower additive cost
+                    urgency = max(0.0, min(100.0, float(target_harvest.urgency_score)))
+                    risk_term = (100.0 - urgency) / 10.0  # 0..10
+                    dist_matrix[i][j] = (
+                        (alpha * travel) + (beta * detour) + (gamma * risk_term)
+                    )
+
         # Scale to integers for OR-Tools
         scaled_matrix = [[int(val * 1000) for val in row] for row in dist_matrix]
-        
+
         manager = pywrapcp.RoutingIndexManager(len(scaled_matrix), 1, 0)
         routing = pywrapcp.RoutingModel(manager)
 
@@ -185,47 +210,48 @@ class RouteOptimizer:
         solution = routing.SolveWithParameters(search_parameters)
         if not solution:
             return harvests, 0.0, 0.0  # Fallback to original order
-            
+
         index = routing.Start(0)
         route_indices = []
         while not routing.IsEnd(index):
             route_indices.append(manager.IndexToNode(index))
             index = solution.Value(routing.NextVar(index))
-            
+
         # route_indices[0] is the depot (0). The rest are 1..N
         ordered_harvests = [harvests[i - 1] for i in route_indices[1:]]
         return ordered_harvests, 0.0, 0.0
 
     async def _build_full_route(
-        self, vehicle: VehicleCandidate, harvests: list[HarvestDemand], pickup_seq: list[HarvestDemand]
+        self,
+        vehicle: VehicleCandidate,
+        harvests: list[HarvestDemand],
+        pickup_seq: list[HarvestDemand],
     ) -> RouteResponse:
-        """Call Mapbox to get the real route details."""
-        coords = [(vehicle.current_lng, vehicle.current_lat)]  # Mapbox needs lon, lat
-        # Pickups
+        """Resolve polyline via Mapbox/OSRM/mock — coordinates as (lat, lng)."""
+        coords: list[tuple[float, float]] = [(vehicle.current_lat, vehicle.current_lng)]
         for h in pickup_seq:
-            coords.append((h.pickup_lng, h.pickup_lat))
-        # Destinations
+            coords.append((h.pickup_lat, h.pickup_lng))
         for h in pickup_seq:
-            coords.append((h.destination_lng, h.destination_lat))
-            
+            coords.append((h.destination_lat, h.destination_lng))
+
         route = await self.routing_adapter.get_route(coords)
         if route:
             return route
-            
-        # Fallback if None
+
         from app.services.routing.mock_provider import RouteResponse as MockRes
+
         return MockRes(0.0, 0.0, [], "")
 
-    def _calculate_total_risk(self, sequence: list[HarvestDemand], duration_hours: float) -> float:
-        """Calculate average or total risk for the route."""
-        # This is a simplification for the MVP
-        # In reality, each harvest has its own time since harvest
-        # We return a dummy value that reflects urgency
+    def _calculate_total_risk(
+        self, sequence: list[HarvestDemand], duration_hours: float
+    ) -> float:
+        """Blend scorer urgency with realized transit pressure."""
         if not sequence:
             return 0.0
-        # More time spent = more risk. Lower max transit = more sensitive
-        avg_sensitivity = sum(h.recommended_max_transit_hours for h in sequence) / len(sequence)
-        if avg_sensitivity == 0:
-            return 100.0
-        risk = (duration_hours / avg_sensitivity) * 100.0
-        return min(100.0, risk)
+        avg_urgency = sum(h.urgency_score for h in sequence) / len(sequence)
+        avg_max = sum(h.recommended_max_transit_hours for h in sequence) / len(sequence)
+        transit_pressure = 0.0
+        if avg_max > 0:
+            transit_pressure = min(100.0, (duration_hours / avg_max) * 100.0)
+        # Prefer scorer urgency; bump when transit exceeds recommended window
+        return min(100.0, max(avg_urgency, transit_pressure))

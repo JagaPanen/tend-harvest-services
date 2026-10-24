@@ -19,6 +19,7 @@ from datetime import datetime
 
 # ── Data types ───────────────────────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class VehicleCandidate:
     """Simplified vehicle data for feasibility checks."""
@@ -35,7 +36,7 @@ class VehicleCandidate:
 
 @dataclass(frozen=True)
 class HarvestDemand:
-    """Minimal harvest info needed for vehicle feasibility."""
+    """Minimal harvest info needed for vehicle feasibility / routing."""
 
     harvest_id: str
     label: str
@@ -45,6 +46,7 @@ class HarvestDemand:
     destination_lat: float
     destination_lng: float
     recommended_max_transit_hours: float  # from risk engine
+    urgency_score: float = 0.0  # 0–100 from risk scorer (higher = visit sooner)
 
 
 @dataclass(frozen=True)
@@ -63,6 +65,7 @@ class FeasibilityResult:
 
 
 # ── Distance utility ────────────────────────────────────────────────────────
+
 
 def haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     """Approximate distance in km between two GPS coordinates using Haversine formula."""
@@ -85,6 +88,7 @@ DEFAULT_AVG_SPEED_KMH = 40.0  # Average speed for time estimates
 
 
 # ── Core engine ─────────────────────────────────────────────────────────────
+
 
 def check_vehicle_feasibility(
     vehicle: VehicleCandidate,
@@ -128,7 +132,10 @@ def check_vehicle_feasibility(
             f"{planned_departure.isoformat()} is before vehicle availability "
             f"{vehicle.available_from.isoformat()}"
         )
-    if vehicle.available_until is not None and planned_departure > vehicle.available_until:
+    if (
+        vehicle.available_until is not None
+        and planned_departure > vehicle.available_until
+    ):
         reasons.append(
             f"REJECTED (availability): planned departure "
             f"{planned_departure.isoformat()} is after vehicle availability window "
@@ -138,7 +145,9 @@ def check_vehicle_feasibility(
     # ── 3. Location proximity ────────────────────────────────────────────
     if harvests:
         min_distance = min(
-            haversine_km(vehicle.current_lat, vehicle.current_lng, h.pickup_lat, h.pickup_lng)
+            haversine_km(
+                vehicle.current_lat, vehicle.current_lng, h.pickup_lat, h.pickup_lng
+            )
             for h in harvests
         )
         if min_distance > max_pickup_radius_km:
