@@ -5,8 +5,9 @@ Copy to seed_dev_local.py (gitignored) and customize:
   copy scripts\\seed_dev_local.example.py scripts\\seed_dev_local.py
   python scripts/seed_dev_local.py
 
-The real seed_dev_local.py creates @panenlink.id Fleet/Enterprise users and
-multi-region harvest locations. Do not commit seed_dev_local.py.
+The real seed_dev_local.py creates @panenlink.id Fleet/Enterprise users
+(including developer@panenlink.id), multi-region harvest locations, and a
+second developer scenario. Do not commit seed_dev_local.py.
 """
 
 raise SystemExit(
